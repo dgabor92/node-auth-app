@@ -100,10 +100,11 @@ app.post("/register", (req, res) => {
     errors.push({ msg: "Password should be at least 6 characters" });
   }
 
-  if (password.includes("password")) {
-    errors.push({ msg: "Password should not contain the word password" });
-  } else if (password.includes("!" || "@" || "#" || "$" || "%" || "&")) {
-    errors.push({ msg: "Password should not contain special characters" });
+  const specialCharsReges = /[ !@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
+  if (!specialCharsReges.test(password)) {
+    errors.push({
+      msg: "Password should contain at least one special characters",
+    });
   }
 
   if (errors.length > 0) {
