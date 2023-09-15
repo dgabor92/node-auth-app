@@ -7,6 +7,7 @@ const flash = require("connect-flash");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("./models/user");
+require("dotenv").config();
 
 const app = express();
 
@@ -15,7 +16,7 @@ function generateJwt(user) {
     id: user.id,
     email: user.email,
   };
-  const secret = "your_secret_key_here";
+  const secret = process.env.SECRET;
   const options = {
     expiresIn: "1h",
   };
@@ -45,6 +46,7 @@ app.use(
 );
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(express.json());
 app.use(flash());
 
 passport.use(
@@ -52,7 +54,6 @@ passport.use(
   new LocalStrategy({ usernameField: "email" }, (email, password, done) => {
     User.findOne({ email: email })
       .then((user) => {
-        console.log(user, "user");
         if (!user) {
           return done(null, false, { message: "No User Found" });
         }
@@ -78,13 +79,21 @@ passport.serializeUser((user, done) => {
 });
 
 passport.deserializeUser((id, done) => {
-  User.findById(id, (err, user) => {
-    done(err, user);
-  });
+  User.findById(id)
+    .then((user) => {
+      if (!user) {
+        console.log("User not found");
+        return;
+      }
+      console.log(`Found user: ${user.name}`);
+    })
+    .catch((error) => {
+      console.error(`Error finding user: ${error.message}`);
+    });
 });
 
-app.post("/register", (req, res) => {
-  const { name, email, password, password2 } = req.body;
+app.post("/api/users", (req, res) => {
+  const { username, email, password, password2 } = req.body;
 
   let errors = [];
 
@@ -145,7 +154,7 @@ app.post("/register", (req, res) => {
   }
 });
 
-app.post("/login", (req, res, next) => {
+app.post("/api/users/login", (req, res, next) => {
   var token;
   passport.authenticate("local", (err, user, info) => {
     if (err) {
@@ -164,6 +173,25 @@ app.post("/login", (req, res, next) => {
   })(req, res, next);
 });
 
+app.get("/api/user", (req, res) => {
+  console.log(req.header("Authorization"));
+  const token = req.header("Authorization");
+
+  if (!token) {
+    return res.status(401).send("Authorization header missing");
+  }
+  console.log(token, "token");
+  jwt.verify(token, process.env.SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send("Invalid token");
+    }
+    console.log(decoded);
+    const user = decoded;
+
+    res.send(user);
+  });
+});
+
 app.get("/users", (req, res) => {
   User.find()
     .then((users) => {
@@ -174,7 +202,7 @@ app.get("/users", (req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT;
 
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
